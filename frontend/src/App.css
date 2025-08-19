@@ -1,0 +1,195 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --font-family: 'Inter', sans-serif;
+  --bg-color: #F0F2F5;
+  --card-bg: #FFFFFF;
+  --text-primary: #1C1E21;
+  --text-secondary: #65676B;
+  --border-color: #E4E6EB;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --gradient-start: #8E2DE2;
+  --gradient-end: #4A00E0;
+  
+  --sentiment-positive: #2E7D32;
+  --sentiment-negative: #C62828;
+  --sentiment-neutral: #65676B;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+}
+
+.app-container {
+  max-width: 800px;
+  margin: 40px auto;
+  padding: 20px;
+}
+
+.app-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.app-header h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.app-header p {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+}
+
+.card {
+  background-color: var(--card-bg);
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  padding: 32px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow);
+}
+
+.input-card h2 {
+  font-size: 1.5rem;
+  margin: 8px 0;
+}
+
+.input-subtitle {
+  color: var(--text-secondary);
+  margin-top: 0;
+  margin-bottom: 24px;
+}
+
+.ai-badge {
+  display: inline-block;
+  background-color: #E7F3FF;
+  color: #1877F2;
+  padding: 4px 12px;
+  border-radius: 99px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  font-family: var(--font-family);
+  font-size: 1rem;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: #1877F2;
+  box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.2);
+}
+
+.input-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.char-counter {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+button {
+  background-image: linear-gradient(to right, var(--gradient-start), var(--gradient-end));
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+}
+
+button:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Results Section */
+.results-section h2 {
+  font-size: 1.75rem;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 8px;
+}
+
+.summary-card .sentiment-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 99px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+.sentiment-badge[data-sentiment*="positive"] { background-color: #E8F5E9; color: var(--sentiment-positive); }
+.sentiment-badge[data-sentiment*="negative"] { background-color: #FFEBEE; color: var(--sentiment-negative); }
+.sentiment-badge[data-sentiment*="neutral"] { background-color: #F5F5F5; color: var(--sentiment-neutral); }
+.sentiment-score { margin-left: 8px; font-weight: 400; opacity: 0.8; }
+
+.summary-text { font-size: 1.05rem; line-height: 1.6; }
+
+.emotions-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+.emotion-card { padding: 24px; }
+.emotion-header { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+.emotion-emoji { font-size: 2.5rem; }
+.emotion-title { flex-grow: 1; }
+.emotion-title h3 { margin: 0; font-size: 1.25rem; }
+.primary-badge {
+  background-color: #E7F3FF; color: #1877F2;
+  padding: 3px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 500;
+}
+.emotion-score { font-size: 1.5rem; font-weight: 600; }
+.emotion-explanation { color: var(--text-secondary); margin: 0; line-height: 1.5; }
+
+.error-card {
+  background-color: #FFF0F0;
+  color: #D93025;
+  border-color: #FAD2CF;
+  text-align: center;
+  font-weight: 500;
+}
+
+/* Spinner */
+.spinner {
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  width: 18px;
+  height: 18px;
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (min-width: 768px) {
+  .emotions-grid { grid-template-columns: repeat(2, 1fr); }
+}
