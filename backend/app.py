@@ -24,9 +24,10 @@ except Exception as e:
     print(f"Error initializing Groq client: {e}")
     groq_client = None
 
-# 2. Local Lightweight Classifiers
+# 2. Local Classifiers
 print("Loading local classifiers...")
-emotion_classifier = pipeline("text-classification", model="joeddav/distilbert-base-uncased-go-emotions-student", top_k=None)
+# --- MODEL UPDATED HERE ---
+emotion_classifier = pipeline("text-classification", model="SamLowe/roberta-base-go_emotions", top_k=None)
 sentiment_classifier = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
 print("All local models loaded.")
 
@@ -102,7 +103,6 @@ def analyze_emotions_final():
         # Step 1: Local classification
         emotion_results = emotion_classifier(user_text)[0]
         emotion_results.sort(key=lambda x: x['score'], reverse=True)
-        # --- CHANGE: Get top 4 emotions ---
         top_emotions_raw = emotion_results[:4]
         
         sentiment_result = sentiment_classifier(user_text)[0]
@@ -119,7 +119,7 @@ def analyze_emotions_final():
         summary = generate_summary_with_groq(user_text, sentiment_data, emotions_data_for_llm)
         explanations = generate_explanations_with_groq(user_text, emotions_data_for_llm)
 
-        # --- NEW: Normalize the scores of the top 4 emotions for frontend display ---
+        # --- Normalize the scores of the top 4 emotions for frontend display ---
         total_score_of_top_4 = sum(e['score'] for e in top_emotions_raw)
         
         final_emotions = []
