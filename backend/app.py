@@ -13,7 +13,7 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# 1. Groq Client for Cloud-Powered Summary
+# 1. Groq Client for Cloud-Powered Analysis
 try:
     groq_api_key = os.environ.get("GROQ_API_KEY")
     if not groq_api_key:
@@ -26,13 +26,12 @@ except Exception as e:
 
 # 2. Local Classifiers
 print("Loading local classifiers...")
-# --- MODEL UPDATED HERE ---
 emotion_classifier = pipeline("text-classification", model="SamLowe/roberta-base-go_emotions", top_k=None)
 sentiment_classifier = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
 print("All local models loaded.")
 
 
-# --- Advanced Explanation and Summary Logic ---
+# --- Emoji Map ---
 EMOJI_MAP = {
     'admiration': '🤩', 'amusement': '😂', 'anger': '😡', 'annoyance': '😒', 'approval': '👍', 'caring': '🤗',
     'confusion': '🤔', 'curiosity': '🧐', 'desire': '😍', 'disappointment': '😞', 'disapproval': '👎', 'disgust': '🤢',
@@ -41,55 +40,54 @@ EMOJI_MAP = {
     'remorse': '😔', 'sadness': '😢', 'surprise': '😲', 'neutral': '😐'
 }
 
-def generate_summary_with_groq(text, sentiment, emotions):
-    """Uses the Groq API to generate a simple, direct summary."""
+def get_refined_analysis_with_groq(text, emotions):
+    """
+    Uses the Groq API (Llama 3) to act as an expert reviewer.
+    It refines the emotion list, provides a summary, and gives explanations.
+    """
     if not groq_client:
-        return f"You seem to feel mostly {emotions[0]['label']} and the overall mood is {sentiment['label'].lower()}."
+        return {
+            "summary": "Could not generate an AI summary.",
+            "emotions": emotions
+        }
 
-    # Create a string of the top emotions for the context
-    emotion_list_str = ", ".join([e['label'] for e in emotions])
-    analysis_context = f"Sentiment: {sentiment['label']}. Top emotions: {emotion_list_str}."
+    candidate_emotions = ", ".join([f"'{e['label']}'" for e in emotions])
+
+    system_prompt = (
+        "You are an expert emotion analysis AI. You will be given a user's text and a list of candidate emotions "
+        "detected by a less advanced model. Your tasks are:\n"
+        "1. From the candidate list, identify the 1 to 4 most accurate emotions for the text.\n"
+        "2. For each accurate emotion you identify, provide a simple, one-sentence explanation referencing the text.\n"
+        "3. Write an insightful, user-friendly summary (2-3 sentences) of the overall emotional tone. Describe the primary feeling and how any secondary emotions add complexity.\n"
+        "4. Format your response as a JSON object with three keys: 'summary', 'emotions'. "
+        "The 'emotions' key should be an array of objects, where each object has 'label' and 'explanation' keys. "
+        "Only include the emotions you have identified as accurate."
+    )
     
+    user_prompt = f"Text: \"{text}\"\nCandidate Emotions: [{candidate_emotions}]"
+
     try:
         chat_completion = groq_client.chat.completions.create(
             messages=[
-                {"role": "system", "content": "You are an AI assistant that writes very simple, clear summaries of emotion analyses. Use easy English. Reference the user's text and explain why the emotions were detected."},
-                {"role": "user", "content": f"Original Text: \"{text}\"\n\nAnalysis Context: {analysis_context}\n\nSummary:"}
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
             ],
             model="llama3-8b-8192",
-            temperature=0.5,
-            max_tokens=80,
+            temperature=0.3,
+            max_tokens=300,
+            response_format={"type": "json_object"},
         )
-        summary = chat_completion.choices[0].message.content.strip()
-        return summary
+        
+        response_content = chat_completion.choices[0].message.content
+        refined_data = json.loads(response_content)
+        return refined_data
+
     except Exception as e:
-        print(f"Groq API call failed: {e}")
-        return f"You seem to feel mostly {emotions[0]['label']} and the overall mood is {sentiment['label'].lower()}."
-
-def generate_explanations_with_groq(text, emotions):
-    """Uses the Groq API to generate explanations for each of the top emotions."""
-    if not groq_client:
-        return {e['label']: "This emotion is detected based on your words." for e in emotions}
-
-    explanations = {}
-    for emotion in emotions:
-        try:
-            chat_completion = groq_client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": "You are an AI assistant that explains why a specific emotion was detected in a user's text. Use simple, clear language. Refer to the user's text in your explanation."},
-                    {"role": "user", "content": f"Original Text: \"{text}\"\n\nEmotion: \"{emotion['label']}\"\n\nExplain in one sentence why this emotion was detected:"}
-                ],
-                model="llama3-8b-8192",
-                temperature=0.5,
-                max_tokens=40,
-            )
-            explanation = chat_completion.choices[0].message.content.strip()
-            explanations[emotion['label']] = explanation
-        except Exception as e:
-            print(f"Groq API call for explanation failed: {e}")
-            explanations[emotion['label']] = f"The overall tone of the text suggests {emotion['label']}."
-            
-    return explanations
+        print(f"Groq API call for refined analysis failed: {e}")
+        return {
+            "summary": "An error occurred while generating the AI summary.",
+            "emotions": emotions
+        }
 
 
 @app.route('/analyze', methods=['POST'])
@@ -100,51 +98,60 @@ def analyze_emotions_final():
         return jsonify({"error": "No text provided."}), 400
 
     try:
-        # Step 1: Local classification
+        # --- Stage 1: Candidate Generation (Local Model) ---
         emotion_results = emotion_classifier(user_text)[0]
         emotion_results.sort(key=lambda x: x['score'], reverse=True)
-        top_emotions_raw = emotion_results[:4]
         
+        candidate_emotions = emotion_results[:5]
+
         sentiment_result = sentiment_classifier(user_text)[0]
         sentiment_label = sentiment_result['label'].capitalize()
         sentiment_score = sentiment_result['score']
         if sentiment_label == 'Negative': sentiment_score *= -1
-
         sentiment_data = {"label": sentiment_label, "score": sentiment_score}
-        
-        # Use raw emotions data for generating explanations, as it's the "true" output
-        emotions_data_for_llm = [{"label": e['label'], "score": e['score']} for e in top_emotions_raw]
 
-        # Step 2: Cloud-powered summary and explanation generation
-        summary = generate_summary_with_groq(user_text, sentiment_data, emotions_data_for_llm)
-        explanations = generate_explanations_with_groq(user_text, emotions_data_for_llm)
+        # --- Stage 2: Expert Review & Final Decision (Llama 3) ---
+        emotions_data_for_llm = [{"label": e['label'], "score": e['score']} for e in candidate_emotions]
+        refined_analysis = get_refined_analysis_with_groq(user_text, emotions_data_for_llm)
 
-        # --- Normalize the scores of the top 4 emotions for frontend display ---
-        total_score_of_top_4 = sum(e['score'] for e in top_emotions_raw)
+        raw_scores_map = {e['label']: e['score'] for e in candidate_emotions}
         
-        final_emotions = []
-        if total_score_of_top_4 > 0:
-            for emotion in top_emotions_raw:
-                normalized_score = emotion['score'] / total_score_of_top_4
-                final_emotions.append({
-                    "label": emotion['label'],
-                    "score": normalized_score, # Use the new normalized score
-                    "explanation": explanations.get(emotion['label'], "This emotion is detected based on your words."),
-                    "emoji": EMOJI_MAP.get(emotion['label'], '😐')
+        final_emotions_list = []
+        for refined_emotion in refined_analysis.get("emotions", []):
+            label = refined_emotion.get("label")
+            if label in raw_scores_map:
+                final_emotions_list.append({
+                    "label": label,
+                    "score": raw_scores_map[label],
+                    "explanation": refined_emotion.get("explanation"),
+                    "emoji": EMOJI_MAP.get(label, '😐')
                 })
-        else:
-            # Fallback for cases where no emotions are detected
-            final_emotions = [{"label": "neutral", "score": 1, "explanation": "No significant emotion was detected.", "emoji": "😐"}]
+        
+        total_score = sum(e['score'] for e in final_emotions_list)
+        if total_score > 0:
+            for emotion in final_emotions_list:
+                emotion['score'] = emotion['score'] / total_score
+        elif final_emotions_list:
+            equal_share = 1 / len(final_emotions_list)
+            for emotion in final_emotions_list:
+                emotion['score'] = equal_share
 
+        # --- FIX: Re-sort the final list by score before sending it to the frontend ---
+        final_emotions_list.sort(key=lambda x: x['score'], reverse=True)
 
-        # Step 3: Construct the final JSON
-        final_analysis = {
+        if not final_emotions_list:
+            final_emotions_list = [{"label": "neutral", "score": 1, "explanation": "The text appears to be emotionally neutral.", "emoji": "😐"}]
+            refined_analysis['summary'] = "No strong emotions were detected in the text."
+
+        # Construct the final JSON
+        final_analysis_payload = {
             "sentiment": sentiment_data,
-            "summary": summary,
-            "emotions": final_emotions
+            "summary": refined_analysis.get("summary", "Summary could not be generated."),
+            "emotions": final_emotions_list
         }
 
-        return jsonify(final_analysis)
+        return jsonify(final_analysis_payload)
+
     except Exception as e:
         print(f"Error in final analysis endpoint: {e}")
         return jsonify({"error": "An internal error occurred during analysis."}), 500
