@@ -8,7 +8,6 @@ const AnalysisSummary = ({ sentiment, summary }) => (
     <h2>Analysis Summary</h2>
     <div className="sentiment-badge" data-sentiment={sentiment.label.replace(' ', '-').toLowerCase()}>
       {sentiment.label}
-      <span className="sentiment-score">Score: {sentiment.score.toFixed(2)}</span>
     </div>
     <p className="summary-text">{summary}</p>
   </div>

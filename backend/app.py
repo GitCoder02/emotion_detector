@@ -53,13 +53,12 @@ def get_refined_analysis_with_groq(text, emotions):
 
     candidate_emotions = ", ".join([f"'{e['label']}'" for e in emotions])
 
-    # --- UPDATED PROMPT FOR A MORE DETAILED AND EMPATHETIC SUMMARY ---
     system_prompt = (
         "You are an expert emotion analysis AI. You will be given a user's text and a list of candidate emotions "
         "detected by a less advanced model. Your tasks are:\n"
         "1. From the candidate list, identify the 1 to 4 most accurate emotions for the text.\n"
         "2. For each accurate emotion you identify, provide a simple, one-sentence explanation referencing the text.\n"
-        "3. Write an insightful, user-friendly summary of the overall emotional tone in 2-3 simple sentences. Start by describing the primary feeling, then explain how the other emotions add complexity or nuance to the user's state of mind.\n"
+        "3. Write an insightful, user-friendly summary (2-3 simple sentences) of the overall emotional tone. Describe the primary feeling and how any secondary emotions add complexity.\n"
         "4. Format your response as a JSON object with three keys: 'summary', 'emotions'. "
         "The 'emotions' key should be an array of objects, where each object has 'label' and 'explanation' keys. "
         "Only include the emotions you have identified as accurate."
@@ -90,6 +89,29 @@ def get_refined_analysis_with_groq(text, emotions):
             "emotions": emotions
         }
 
+def get_sentiment_from_summary(summary):
+    """Uses Groq to classify the summary's sentiment."""
+    if not groq_client:
+        return "Neutral" # Fallback
+    try:
+        chat_completion = groq_client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": "Read the following summary of an emotional analysis. Classify the overall sentiment as 'Positive', 'Negative', or 'Neutral'. Respond with only one of these three words."},
+                {"role": "user", "content": f"Summary: \"{summary}\""}
+            ],
+            model="llama3-8b-8192",
+            temperature=0,
+            max_tokens=10,
+        )
+        sentiment = chat_completion.choices[0].message.content.strip()
+        # Ensure the response is one of the three expected values
+        if sentiment in ["Positive", "Negative", "Neutral"]:
+            return sentiment
+        return "Neutral" # Fallback if the response is unexpected
+    except Exception as e:
+        print(f"Groq API call for sentiment classification failed: {e}")
+        return "Neutral"
+
 
 @app.route('/analyze', methods=['POST'])
 def analyze_emotions_final():
@@ -105,12 +127,12 @@ def analyze_emotions_final():
         
         candidate_emotions = emotion_results[:5]
 
+        # Get initial sentiment score, but we will overwrite the label later
         sentiment_result = sentiment_classifier(user_text)[0]
-        sentiment_label = sentiment_result['label'].capitalize()
         sentiment_score = sentiment_result['score']
-        if sentiment_label == 'Negative': sentiment_score *= -1
-        sentiment_data = {"label": sentiment_label, "score": sentiment_score}
-
+        if sentiment_result['label'].upper() == 'NEGATIVE': 
+            sentiment_score *= -1
+        
         # --- Stage 2: Expert Review & Final Decision (Llama 3) ---
         emotions_data_for_llm = [{"label": e['label'], "score": e['score']} for e in candidate_emotions]
         refined_analysis = get_refined_analysis_with_groq(user_text, emotions_data_for_llm)
@@ -143,10 +165,16 @@ def analyze_emotions_final():
             final_emotions_list = [{"label": "neutral", "score": 1, "explanation": "The text appears to be emotionally neutral.", "emoji": "😐"}]
             refined_analysis['summary'] = "No strong emotions were detected in the text."
 
+        # --- NEW FINAL STEP: Get sentiment from the AI summary for consistency ---
+        final_summary = refined_analysis.get("summary", "Summary could not be generated.")
+        final_sentiment_label = get_sentiment_from_summary(final_summary)
+        
+        sentiment_data = {"label": final_sentiment_label, "score": sentiment_score}
+
         # Construct the final JSON
         final_analysis_payload = {
             "sentiment": sentiment_data,
-            "summary": refined_analysis.get("summary", "Summary could not be generated."),
+            "summary": final_summary,
             "emotions": final_emotions_list
         }
 
