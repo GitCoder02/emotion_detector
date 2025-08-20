@@ -1,7 +1,3 @@
-Of course. Here is a comprehensive README file for your project. You can save this as `README.md` in the root directory of your `emotion_detector` project.
-
------
-
 # AI-Powered Emotion Detector
 
 This project is a full-stack web application that analyzes the emotional sentiment of any given text. It uses a combination of local, lightweight machine learning models for initial analysis and a powerful cloud-based Large Language Model (LLM) to provide nuanced, human-readable explanations.
