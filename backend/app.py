@@ -53,12 +53,13 @@ def get_refined_analysis_with_groq(text, emotions):
 
     candidate_emotions = ", ".join([f"'{e['label']}'" for e in emotions])
 
+    # --- UPDATED PROMPT FOR A MORE DETAILED AND EMPATHETIC SUMMARY ---
     system_prompt = (
         "You are an expert emotion analysis AI. You will be given a user's text and a list of candidate emotions "
         "detected by a less advanced model. Your tasks are:\n"
         "1. From the candidate list, identify the 1 to 4 most accurate emotions for the text.\n"
         "2. For each accurate emotion you identify, provide a simple, one-sentence explanation referencing the text.\n"
-        "3. Write an insightful, user-friendly summary (2-3 sentences) of the overall emotional tone. Describe the primary feeling and how any secondary emotions add complexity.\n"
+        "3. Write an insightful, user-friendly summary of the overall emotional tone in 2-3 simple sentences. Start by describing the primary feeling, then explain how the other emotions add complexity or nuance to the user's state of mind.\n"
         "4. Format your response as a JSON object with three keys: 'summary', 'emotions'. "
         "The 'emotions' key should be an array of objects, where each object has 'label' and 'explanation' keys. "
         "Only include the emotions you have identified as accurate."
@@ -136,7 +137,6 @@ def analyze_emotions_final():
             for emotion in final_emotions_list:
                 emotion['score'] = equal_share
 
-        # --- FIX: Re-sort the final list by score before sending it to the frontend ---
         final_emotions_list.sort(key=lambda x: x['score'], reverse=True)
 
         if not final_emotions_list:
